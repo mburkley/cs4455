@@ -72,6 +72,7 @@ void secure_connect(const char* host, const char *port)
         printf("flag=%ld\n", verify_flag);
         fprintf(stderr, "##### Certificate verification error (%i) ...\n", 
             (int) verify_flag);
+        report_and_exit("SSL verify..."); 
 
         // see /usr/include/openssl/x509_vfy.h
 
