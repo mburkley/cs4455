@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>JavaScript DH key generator</title>
+</head>
+
+<body> <script>
+
+async function genKey() {
+    return await window.crypto.subtle.generateKey(
+	{
+	    name: "ECDH",
+	    namedCurve: "P-384",
+	},
+	true,
+	["deriveKey"],
+	)
+}
+
+async function importKey(encoding, der) {
+    return await crypto.subtle.importKey(
+	encoding,
+	der,
+	{
+	    name: "ECDH",
+	    namedCurve: "P-384",
+	},
+	true,
+	// ['deriveKey'])
+	    // usages must be empty for chrome pub key import
+	[])
+}
+
+/*
+Convert a string into an ArrayBuffer
+from https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+*/
+function str2ab(str) {
+    const buf = new ArrayBuffer(str.length);
+    const bufView = new Uint8Array(buf);
+
+    for (let i = 0, strLen = str.length; i < strLen; i++) {
+	bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+}
+
+function encodeKey (key) {
+    var str = String.fromCharCode.apply(null, new Uint8Array(key));
+    var b64 = window.btoa(str);
+    return b64
+}
+
+function decodeKey (pem, show, store) {
+    // base64 decode the string to get the binary data
+    const binaryDerString = window.atob(pem);
+    // convert from a binary string to an ArrayBuffer
+    const binaryDer = str2ab(binaryDerString);
+    return binaryDer
+}
+
+function showPubKey (key) {
+    crypto.subtle.exportKey("spki", key).then (publicExport => {
+	var publicKeyPem = encodeKey (publicExport)
+	document.write ("New public key is <br><h2>"+publicKeyPem+"</h2>")
+	document.close()
+    })
+}
+
+var idb = window.indexedDB.open("cs4455", 1)
+var publicKeyPem = localStorage.getItem('cs4455-pub')
+var keyPair
+
+idb.onerror = (event) => {
+    console.log ("Can't open indexedb")
+}
+
+idb.onupgradeneeded = (event) => {
+    db = event.target.result;
+    db.createObjectStore("dh-key", { keyPath: "id" });
+    // db.createObjectStore("dh-key");
+    console.log ("Upgraded")
+}
+
+idb.onsuccess = (event) => {
+    db = event.target.result;
+    console.log ("db opened")
+    let transaction = db.transaction(["dh-key"], "readonly");
+    let store = transaction.objectStore("dh-key");
+    var getData = store.get(1);
+
+    getData.onsuccess = (event) => {
+	console.log ("get success event="+event)
+	console.log ("result = "+getData.result)
+	if (getData.result) {
+	    console.log ("retrieved key "+JSON.stringify(getData.result))
+	    keyPair = getData.result.value;
+	    showPubKey(keyPair.publicKey)
+	}
+	else {
+	    console.log ("couldn't fetch key - generating")
+	    genKey().then (key => {
+		keyPair = key
+                let transaction = db.transaction(["dh-key"], "readwrite");
+		let store = transaction.objectStore("dh-key");
+		addData = store.add({id: 1, value: keyPair});
+
+		showPubKey(keyPair.publicKey)
+	    })
+	}
+    }
+
+    getData.onerror = (event) => {
+	console.log ("get data error")
+    }
+
+    transaction.oncomplete = (event) => {
+	// idb.close();
+    }
+}
+
+</script>
+</body></html>
